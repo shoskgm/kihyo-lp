@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kihyo — 取引先から届く注文書を、そのまま注文に</title>
+    <meta name="description" content="FAX・PDF・メールで届く注文書を、打ち直さずに Shopify の注文にします。品番はSKU一覧と照合し、合わない行は注文にせず名指しします。" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;600&family=Noto+Sans+JP:wght@400;500&display=swap" rel="stylesheet" />
+    <style>
+      :root { --paper:#efe7d7; --paper-2:#f6f1e6; --ink:#2b2620; --ink-2:#6b6154; --rule:#c9bda6; --seal:#9c3a2a; }
+      * { box-sizing: border-box; }
+      body { margin:0; background:var(--paper); color:var(--ink);
+             font-family:"Noto Sans JP",system-ui,sans-serif; font-size:16px; line-height:1.9; }
+      .wrap { width:min(760px,100%); margin:0 auto; padding:56px 20px 72px; }
+      h1 { font-family:"Shippori Mincho",serif; font-size:28px; line-height:1.5; margin:0 0 10px; font-weight:600; }
+      .lead { font-size:18px; margin:0 0 40px; }
+      h2 { font-family:"Shippori Mincho",serif; font-size:19px; margin:44px 0 12px; font-weight:600;
+           border-bottom:1px solid var(--rule); padding-bottom:8px; }
+      p { margin:0 0 16px; }
+      ul { margin:0 0 16px; padding-left:1.2em; }
+      li { margin:0 0 8px; }
+      .note { background:var(--paper-2); padding:16px 18px; margin:0 0 16px; }
+      .cta { margin:44px 0 0; padding:24px 20px; background:var(--paper-2); text-align:center; }
+      .cta a { display:inline-block; margin-top:10px; padding:12px 28px; border:1px solid var(--seal);
+               color:var(--seal); text-decoration:none; letter-spacing:.06em; }
+      .cta a:hover { background:var(--seal); color:var(--paper); }
+      footer { margin-top:56px; padding-top:16px; border-top:1px solid var(--rule);
+               font-size:13px; color:var(--ink-2); }
+      @media (max-width:560px){ .wrap{padding:36px 16px 56px} h1{font-size:23px} .lead{font-size:16px} }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>取引先から届く注文書を、そのまま注文に</h1>
+      <p class="lead">FAX・PDF・メールで届く注文書を、打ち直さずに Shopify の注文にします。</p>
+
+      <h2>取引先ごとに、書式が違います</h2>
+      <p>Excel の表で来る会社、自社の帳票を PDF にして送ってくる会社、メール本文に箇条書きで書いてくる会社、いまも FAX の会社。どれも注文書ですが、同じ形をしていません。</p>
+      <p>Kihyo は、その違いを吸収して、品番・数量・単価・金額を取り出します。取り出したら、そのまま Shopify の注文の下書きになります。</p>
+
+      <h2>確かめてから出します</h2>
+      <p>単価×数量が金額と合っているか。明細の合計が小計と合っているか。合わない行があれば、注文にせず、どこが合わないかを名指しします。</p>
+
+      <h2>品番は、店舗の SKU 一覧と照合します</h2>
+      <p>FAX を通ると「PP-A4-500」が「PP A4 500」になって届くことがあります。区切りが変わっただけなので、潰して比べれば当たります。</p>
+      <div class="note">
+        <p style="margin:0">ただし、当てにいかない場面があります。「AB-12」と「AB1-2」のように、潰すと同じになる品番が両方あるとき、Kihyo は選びません。候補を並べて、人に選んでもらいます。</p>
+        <p style="margin:8px 0 0">金額の間違いは請求のときに気づきます。品番の間違いは、届くまで分かりません。だから、分からないときは分からないと出します。</p>
+      </div>
+
+      <h2>いまの状態</h2>
+      <ul>
+        <li>注文書を読んで、合う・確認が要る・合わないを判定するところまで動いています。</li>
+        <li>Shopify の下書き注文として起票するところも、検体で確かめています。</li>
+        <li>アプリとしての公開は準備中です。<strong>先に試したい方に、個別にお手伝いします。</strong></li>
+      </ul>
+
+      <div class="cta">
+        <p style="margin:0">注文書の打ち直しに時間を取られている方へ。<br />いまの書式のまま、1件 試してみませんか。</p>
+        <a href="https://docs.google.com/forms/d/e/1FAIpQLSfz1Rxko_STbnanPC5qpBGdPuMnxPwNHM8DFn6DfcPN1W9oag/viewform">お問い合わせ</a>
+      </div>
+
+      <footer>めやす舎</footer>
+    </div>
+  </body>
+</html>

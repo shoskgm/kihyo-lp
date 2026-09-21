@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>注文書の検算 — Kihyo（めやす舎）</title>
+    <meta name="description" content="メールで届いた注文書を貼ると、明細を取り出して単価×数量と合計を検算します。ブラウザの中だけで動き、どこにも送りません。" />
+    <link rel="icon" href="../images/favicon-32.png" sizes="32x32" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="めやす舎" />
+    <meta property="og:title" content="注文書の検算 — Kihyo" />
+    <meta property="og:description" content="注文書を貼ると、明細を取り出して検算します。ブラウザの中だけで動き、どこにも送りません。" />
+    <meta property="og:url" content="https://shoskgm.github.io/kihyo-lp/check/" />
+    <meta property="og:image" content="https://shoskgm.github.io/kihyo-lp/images/ogp.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;600&family=Noto+Sans+JP:wght@400;500&display=swap" rel="stylesheet" />
+    <style>
+      :root { --paper:#efe7d7; --paper-2:#f6f1e6; --ink:#2b2620; --ink-2:#6b6154; --rule:#c9bda6; --seal:#9c3a2a; }
+      * { box-sizing: border-box; }
+      body { margin:0; background:var(--paper); color:var(--ink);
+             font-family:"Noto Sans JP",system-ui,sans-serif; font-size:16px; line-height:1.9; }
+      .wrap { width:min(760px,100%); margin:0 auto; padding:48px 20px 72px; }
+      h1 { font-family:"Shippori Mincho",serif; font-size:26px; line-height:1.5; margin:0 0 10px; font-weight:600; }
+      h2 { font-family:"Shippori Mincho",serif; font-size:18px; margin:32px 0 10px; font-weight:600;
+           border-bottom:1px solid var(--rule); padding-bottom:6px; }
+      p { margin:0 0 14px; }
+      .lead { font-size:17px; margin:0 0 8px; }
+      .privacy { background:var(--paper-2); padding:14px 16px; font-size:14px; color:var(--ink-2); margin:0 0 20px; }
+      textarea { width:100%; min-height:220px; font-family:ui-monospace,SFMono-Regular,Consolas,monospace;
+                 font-size:14px; line-height:1.7; padding:12px; border:1px solid var(--rule); border-radius:8px; background:#fff; }
+      .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:12px 0 0; }
+      button { min-height:48px; padding:0 20px; border-radius:10px; border:1px solid var(--seal);
+               background:var(--seal); color:var(--paper); font-size:16px; letter-spacing:.04em; }
+      button.ghost { background:transparent; color:var(--seal); }
+      table { border-collapse:collapse; width:100%; font-size:14px; margin:0 0 14px; }
+      th, td { border-bottom:1px solid var(--rule); padding:7px 8px; text-align:left; }
+      td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+      .verdict { padding:14px 16px; margin:0 0 16px; background:var(--paper-2); border-left:4px solid var(--rule); }
+      .verdict.ok { border-left-color:#3f6b3f; }
+      .verdict.review { border-left-color:#9a7b26; }
+      .verdict.reject { border-left-color:var(--seal); }
+      ul { margin:0 0 14px; padding-left:1.2em; }
+      li { margin:0 0 6px; }
+      footer { margin-top:48px; padding-top:16px; border-top:1px solid var(--rule); font-size:13px; color:var(--ink-2); }
+      a { color:var(--seal); }
+      .hide { display:none; }
+      @media (max-width:560px){ .wrap{padding:32px 16px 56px} h1{font-size:22px} }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>注文書の検算</h1>
+      <p class="lead">メールで届いた注文書を貼ると、明細を取り出して、単価×数量と合計が合っているかを確かめます。</p>
+      <p class="privacy">
+        <strong>この計算は、あなたのブラウザの中だけで動きます。</strong>貼った内容はどこにも送られません（この頁は通信をしません）。
+        Kihyo 本体と同じ判定のコードを、そのまま読み込んで動かしています。
+      </p>
+
+      <textarea id="src" placeholder="ここに注文書のメール本文を貼ってください（返信の引用や署名が混ざっていても構いません）"></textarea>
+      <div class="row">
+        <button id="run">検算する</button>
+        <button id="sample" class="ghost">例を入れる</button>
+      </div>
+
+      <div id="out" class="hide">
+        <h2>結果</h2>
+        <div id="verdict" class="verdict"></div>
+        <div id="detail"></div>
+      </div>
+
+      <h2>ここで分かること・分からないこと</h2>
+      <ul>
+        <li><strong>分かる</strong>——明細の取り出し、単価×数量、合計の一致、返信に引用された過去の注文を外すこと。</li>
+        <li><strong>分からない</strong>——品番があなたの店舗の SKU に在るか。ここは店舗の商品一覧が要るので、<a href="../">Kihyo</a> 本体の仕事です。</li>
+        <li>PDF・画像・FAX はこの頁では読めません。本体は対応します。</li>
+      </ul>
+
+      <footer><a href="../">Kihyo について</a>　/　<a href="../privacy/">プライバシーポリシー</a>　—　めやす舎</footer>
+    </div>
+
+    <script type="module">
+      import { intake } from "./lib/intake.js";
+
+      const SAMPLE = "件名: Re: 8月分の発注について\n\n株式会社めやす商事\n購買部 ご担当者様\n\nいつもお世話になっております。うちのまる工業の田中です。\n先日はご対応ありがとうございました。\n\n下記のとおり追加で発注いたします。\n\n・商品名：A4コピー用紙\n・品番：PP-A4-500\n・数量：40箱\n・単価：2,400円\n・金額：96,000円\n\n・商品名：ボールペン 黒 0.5\n・品番：BP-BK-05\n・数量：120本\n・単価：110円\n・金額：13,200円\n\n合計：109,200円（税抜）\n希望納期：2026年8月28日\n納入場所：本社倉庫（東京都千代田区丸の内1-1-1）\n\nご確認のほどよろしくお願いいたします。\n\n--\nうちのまる工業株式会社 田中一郎\nTEL 03-9876-5432\n\n> -----Original Message-----\n> 差出人: 株式会社めやす商事 購買部\n> 件名: 8月分の発注について\n>\n> お世話になっております。\n> 下記のとおり発注いたします。\n>\n> ・商品名：封筒 長3 白\n> ・品番：EN-N3-W\n> ・数量：15箱\n> ・単価：1,250円\n> ・金額：18,750円\n>\n> 合計：18,750円（税抜）\n> 希望納期：2026年8月20日\n";
+
+      const $ = (id) => document.getElementById(id);
+      const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+      const num = (n) => (n == null ? "" : Number(n).toLocaleString("ja-JP"));
+
+      $("sample").addEventListener("click", () => { $("src").value = SAMPLE; });
+
+      $("run").addEventListener("click", () => {
+        const body = $("src").value.trim();
+        if (!body) return;
+        let r;
+        try {
+          r = intake({ kind: "mail", body }, []);
+        } catch (e) {
+          show("reject", "読み取れませんでした", ["<li>" + esc(e.message) + "</li>"].join(""));
+          return;
+        }
+        const o = r.order || {};
+        const rows = o.明細 || [];
+        const tbl = rows.length
+          ? ["<table><thead><tr><th>品番</th><th class='num'>数量</th><th class='num'>単価</th><th class='num'>金額</th></tr></thead><tbody>",
+             ...rows.map((x) => `<tr><td>${esc(x.品番 ?? x.SKU ?? "")}</td><td class='num'>${num(x.数量)}</td><td class='num'>${num(x.単価)}</td><td class='num'>${num(x.金額)}</td></tr>`),
+             "</tbody></table>"].join("")
+          : "<p>明細を取り出せませんでした。</p>";
+        const list = (title, items) => (items && items.length)
+          ? `<p><strong>${title}</strong></p><ul>${items.map((s) => "<li>" + esc(String(s).replace(/\*/g, "")) + "</li>").join("")}</ul>`
+          : "";
+        const head = {
+          ready:  ["ok", "合っています。このまま注文にできます。"],
+          review: ["review", "人の確認が要ります。"],
+          reject: ["reject", "合いません。注文にしないでください。"],
+        }[r.判定] || ["review", "判定できませんでした。"];
+        show(head[0], head[1],
+          (o.発注元 ? `<p>発注元：${esc(o.発注元)}${o.担当者 ? "　担当者：" + esc(o.担当者) : ""}</p>` : "") +
+          tbl +
+          (o.合計 != null ? `<p>合計：${num(o.合計)}</p>` : "") +
+          list("確認が要るところ", (r.要人手 || []).filter((s) => !/店舗のSKUに無い/.test(s))) +
+          list("合わないところ", r.理由) +
+          list("読み取るときに外したもの", r.注記));
+      });
+
+      function show(kind, text, html) {
+        $("out").classList.remove("hide");
+        const v = $("verdict");
+        v.className = "verdict " + kind;
+        v.textContent = text;
+        $("detail").innerHTML = html;
+        $("out").scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>取引先に渡す注文書のひな形 — Kihyo（めやす舎）</title>
+    <meta name="description" content="取引先からの注文を、いつも同じ5行の形で届くようにするひな形です。コピーしてメールに貼るだけ。届いた注文書は無料の検算ページでそのまま確かめられます。" />
+    <link rel="icon" href="../images/favicon-32.png" sizes="32x32" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;600&family=Noto+Sans+JP:wght@400;500&display=swap" rel="stylesheet" />
+    <style>
+      :root { --paper:#efe7d7; --paper-2:#f6f1e6; --ink:#2b2620; --ink-2:#6b6154; --rule:#c9bda6; --seal:#9c3a2a; }
+      * { box-sizing: border-box; }
+      body { margin:0; background:var(--paper); color:var(--ink);
+             font-family:"Noto Sans JP",system-ui,sans-serif; font-size:16px; line-height:1.9; }
+      .wrap { width:min(760px,100%); margin:0 auto; padding:48px 20px 72px; }
+      h1 { font-family:"Shippori Mincho",serif; font-size:26px; line-height:1.5; margin:0 0 10px; font-weight:600; }
+      h2 { font-family:"Shippori Mincho",serif; font-size:18px; margin:32px 0 10px; font-weight:600;
+           border-bottom:1px solid var(--rule); padding-bottom:6px; }
+      p { margin:0 0 14px; }
+      .lead { font-size:17px; margin:0 0 8px; }
+      .privacy { background:var(--paper-2); padding:14px 16px; font-size:14px; color:var(--ink-2); margin:0 0 20px; }
+      textarea { width:100%; min-height:220px; font-family:ui-monospace,SFMono-Regular,Consolas,monospace;
+                 font-size:14px; line-height:1.7; padding:12px; border:1px solid var(--rule); border-radius:8px; background:#fff; }
+      .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:12px 0 0; }
+      button { min-height:48px; padding:0 20px; border-radius:10px; border:1px solid var(--seal);
+               background:var(--seal); color:var(--paper); font-size:16px; letter-spacing:.04em; }
+      button.ghost { background:transparent; color:var(--seal); }
+      table { border-collapse:collapse; width:100%; font-size:14px; margin:0 0 14px; }
+      th, td { border-bottom:1px solid var(--rule); padding:7px 8px; text-align:left; }
+      td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+      .verdict { padding:14px 16px; margin:0 0 16px; background:var(--paper-2); border-left:4px solid var(--rule); }
+      .verdict.ok { border-left-color:#3f6b3f; }
+      .verdict.review { border-left-color:#9a7b26; }
+      .verdict.reject { border-left-color:var(--seal); }
+      ul { margin:0 0 14px; padding-left:1.2em; }
+      li { margin:0 0 6px; }
+      footer { margin-top:48px; padding-top:16px; border-top:1px solid var(--rule); font-size:13px; color:var(--ink-2); }
+      a { color:var(--seal); }
+      .hide { display:none; }
+      .ask { display:inline-block; margin:4px 0 0; padding:12px 28px; border:1px solid var(--seal);
+             color:var(--seal); text-decoration:none; letter-spacing:.06em; }
+      .ask:hover { background:var(--seal); color:var(--paper); }
+      .handling { font-size:13px; color:var(--ink-2); line-height:1.8; margin:12px 0 0; }
+      @media (max-width:560px){ .wrap{padding:32px 16px 56px} h1{font-size:22px} }
+          pre { white-space:pre-wrap; background:#fff; border:1px solid var(--rule); border-radius:8px; padding:12px; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:14px; line-height:1.7; margin:0 0 10px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <main>
+      <h1>取引先に渡す注文書のひな形</h1>
+      <p class="lead">取引先からの注文が、メール本文でばらばらの形で届いて困っていませんか。品番が文中に埋もれていたり、単価と金額が別の行に分かれていたりすると、受ける側で読み直す手間がかかります。</p>
+      <p>このひな形を取引先に一度渡しておくと、注文がいつも同じ5行の形で届くようになります。コピーしてメールに貼り、空欄を埋めてもらうだけです。Excel も専用のソフトも要りません。</p>
+
+      <h2>ひな形（コピーして取引先へ）</h2>
+      <pre id="tpl">件名: 【注文書】（貴社名）→（仕入先名）　（注文日）
+
+（仕入先名） ご担当者様
+
+いつもお世話になっております。（貴社名）の（ご担当者名）です。
+下記のとおり注文いたします。
+
+・商品名：
+・品番：
+・数量：
+・単価：
+・金額：
+
+（明細が複数あるときは、上の5行をそのまま繰り返してください）
+
+合計：　　円（税抜）
+希望納期：　　年　　月　　日
+納入場所：
+
+よろしくお願いいたします。</pre>
+      <div class="row"><button id="copy">ひな形をコピー</button><span id="copied" class="hide">コピーしました</span></div>
+
+      <h2>記入例</h2>
+      <pre>件名: 【注文書】うちのまる工業 → めやす商事　2026年10月1日
+
+めやす商事 ご担当者様
+
+いつもお世話になっております。うちのまる工業の田中です。
+下記のとおり注文いたします。
+
+・商品名：A4コピー用紙
+・品番：PP-A4-500
+・数量：40箱
+・単価：2,400円
+・金額：96,000円
+
+・商品名：ボールペン 黒 0.5
+・品番：BP-BK-05
+・数量：120本
+・単価：110円
+・金額：13,200円
+
+・商品名：封筒 長3 白
+・品番：EN-N3-W
+・数量：15箱
+・単価：1,250円
+・金額：18,750円
+
+合計：127,950円（税抜）
+希望納期：2026年10月10日
+納入場所：本社倉庫（東京都千代田区丸の内1-1-1）
+
+よろしくお願いいたします。</pre>
+
+      <h2>届いた注文書を、その場で検算する</h2>
+      <p>届いたメールの本文は、そのまま<a href="../check/">注文書の検算ページ</a>に貼れます。単価と数量を掛けた額と、合計の額が合っているかが分かります。貼った中身はお使いのブラウザの外へ出ません。</p>
+      <p>上の記入例で試すと「計算は合っています。残るのは品番の確認だけです」と出ます。品番がお店の商品に本当に在るかは、検算ページでは見られません。そこを見るのが <a href="../">Kihyo</a> 本体で、お店の商品一覧と突き合わせます。</p>
+
+      <h2>気をつけてほしいこと</h2>
+      <p>Excel の表をそのままメールに貼った注文は、いまは読み取れません。表で管理している取引先には、このひな形の5行に書き直してもらうようお願いしてください。表のまま読めるようにするのは、これからの課題です。</p>
+      <p>ひな形の文言は、自由に書き換えて構いません。「・品番：」のように、項目名とコロンの形だけ残してもらえれば読み取れます。</p>
+      </main>
+      <footer><a href="../">Kihyo について</a> / <a href="../privacy/">プライバシーポリシー</a> — めやす舎</footer>
+    </div>
+    <script>
+      document.getElementById("copy").addEventListener("click", async () => {
+        try { await navigator.clipboard.writeText(document.getElementById("tpl").textContent); document.getElementById("copied").classList.remove("hide"); } catch (e) {}
+      });
+    </script>
+  </body>
+</html>

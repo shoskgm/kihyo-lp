@@ -56,11 +56,11 @@
       <p>このひな形を取引先に一度渡しておくと、注文がいつも同じ5行の形で届くようになります。コピーしてメールに貼り、空欄を埋めてもらうだけです。Excel も専用のソフトも要りません。</p>
 
       <h2>ひな形（コピーして取引先へ）</h2>
-      <pre id="tpl">件名: 【注文書】（貴社名）→（仕入先名）　（注文日）
+      <pre id="tpl">件名: 【注文書】（自社名）→（仕入先名）　（注文日）
 
 （仕入先名） ご担当者様
 
-いつもお世話になっております。（貴社名）の（ご担当者名）です。
+いつもお世話になっております。（自社名）の（お名前）です。
 下記のとおり注文いたします。
 
 ・商品名：
@@ -106,7 +106,7 @@
 
 合計：127,950円（税抜）
 希望納期：2026年10月10日
-納入場所：本社倉庫（東京都千代田区丸の内1-1-1）
+納入場所：本社倉庫（〇〇県〇〇市〇〇町1-2-3）
 
 よろしくお願いいたします。</pre>
 
@@ -122,7 +122,10 @@
     </div>
     <script>
       document.getElementById("copy").addEventListener("click", async () => {
-        try { await navigator.clipboard.writeText(document.getElementById("tpl").textContent); document.getElementById("copied").classList.remove("hide"); } catch (e) {}
+        const note = document.getElementById("copied");
+        try { await navigator.clipboard.writeText(document.getElementById("tpl").textContent); note.textContent = "コピーしました"; }
+        catch (e) { note.textContent = "コピーできませんでした。枠の中を選んで、手でコピーしてください"; }
+        note.classList.remove("hide");
       });
     </script>
   </body>

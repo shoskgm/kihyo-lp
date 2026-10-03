@@ -72,12 +72,13 @@ const FIELD = /^\s*[・･\-*]?\s*([^：:]{1,20})\s*[：:]\s*(.+?)\s*$/;
 
 /** 数字を取り出す。`2,400円` `40箱` `120本` → 2400 / 40 / 120 */
 const toNum = (s) => {
-    const m = String(s).replace(/[,，]/g, "").match(/-?\d+/);
+    // **全角の数字（１２０・１，２００）も数として読む。**——Excel の表で実際に出る形（2026-10-03）
+    const m = String(s).normalize("NFKC").replace(/,/g, "").match(/-?\d+/);
     return m ? Number(m[0]) : null;
 };
 /** 単位を取り出す。`40箱` → 箱 */
 const toUnit = (s) => {
-    const m = String(s).replace(/[,，\d\s]/g, "").match(/^[^0-9]{1,3}/);
+    const m = String(s).normalize("NFKC").replace(/[,\d\s]/g, "").match(/^[^0-9]{1,3}/);
     return m ? m[0] : null;
 };
 
@@ -140,12 +141,38 @@ const tableHead = (cells) => {
  *
  * **小計・合計・消費税の行は明細にしない。**——小計と合計は、検算に使うので返す。
  */
+const quotes = (s) => (s.match(/"/g) ?? []).length;
+/**
+ * **Excel は、セルの中に改行が在ると、そのセルを引用符で包んで写す。**——行に割る前に、包みの中の改行をつなぐ。
+ * 〔つながないと1件が2行に割れ、後ろの行の列がずれる＝数量の列に品名の続きが入る〕
+ *
+ * **始まりは「セルの先頭が引用符」のときだけ。**——インチの記号（`3/4"`）で後ろの行を飲み込まない。
+ * **閉じないまま終わったら、つながずに元の行へ戻す。**
+ */
+const tableLines = (text) => {
+    const out = [];
+    let held = null;
+    for (const line of text.split(/\r?\n/)) {
+        if (held) {
+            held.push(line);
+            if (quotes(held.join("")) % 2 === 0) { out.push(held.join(" ")); held = null; }
+            continue;
+        }
+        if (line.includes("\t") && /(^|\t)"/.test(line) && quotes(line) % 2 === 1) { held = [line]; continue; }
+        out.push(line);
+    }
+    if (held) out.push(...held);
+    return out;
+};
+/** 包みの引用符を外す。`"ボルト ""特注"""` → `ボルト "特注"` */
+const unquote = (c) => (/^"[\s\S]*"$/.test(c) ? c.slice(1, -1).replace(/""/g, '"') : c);
+
 export function extractTable(text) {
     const items = [], totals = {};
     let col = null;
-    for (const line of text.split(/\r?\n/)) {
+    for (const line of tableLines(text)) {
         if (!line.includes("\t")) continue;
-        const cells = line.split("\t").map((c) => c.trim());
+        const cells = line.split("\t").map((c) => unquote(c.trim()).trim());
         const head = tableHead(cells);
         if (head) { col = head; continue; }
         if (!col) continue;

@@ -119,7 +119,7 @@
         const rows = o.明細 || [];
         const tbl = rows.length
           ? ["<table><thead><tr><th>品番</th><th class='num'>数量</th><th class='num'>単価</th><th class='num'>金額</th></tr></thead><tbody>",
-             ...rows.map((x) => `<tr><td>${esc(x.品番 ?? x.SKU ?? "")}</td><td class='num'>${num(x.数量)}</td><td class='num'>${num(x.単価)}</td><td class='num'>${num(x.金額)}</td></tr>`),
+             ...rows.map((x) => `<tr><td>${esc(x.品番 ?? x.SKU ?? x.商品名 ?? "")}</td><td class='num'>${num(x.数量)}</td><td class='num'>${num(x.単価)}</td><td class='num'>${num(x.金額)}</td></tr>`),
              "</tbody></table>"].join("")
           : "<p>明細を取り出せませんでした。</p>";
         const list = (title, items) => (items && items.length)
@@ -131,7 +131,9 @@
         const 品番の話 = (x) => /店舗のSKUに無い/.test(x);
         const その他 = 手.filter((x) => !品番の話(x));
         const 品番だけ = 手.length > 0 && その他.length === 0;
-        const 読めない = r.判定 === "reject" && rows.length === 0;
+        // **読めなかった ≠ 計算が合わない。**——明細が0件のときと、落ちた理由が「読めていない」だけのとき〔R-342 ①〕
+        const 読めていない = (x) => /読めていない/.test(x);
+        const 読めない = r.判定 === "reject" && (rows.length === 0 || ((r.理由 || []).length > 0 && r.理由.every(読めていない)));
         const head = 読めない
           ? ["reject", "読み取れませんでした。このままでは注文にしないでください。"]
           : r.判定 === "ready"
@@ -147,7 +149,7 @@
           (o.発注元 ? `<p>発注元：${esc(o.発注元)}${o.担当者 ? "　担当者：" + esc(o.担当者) : ""}</p>` : "") +
           tbl +
           (o.合計 != null ? `<p>合計：${num(o.合計)}</p>` : "") +
-          (rows.length === 0
+          (読めない
             ? "<p><strong>いま読めるのは、1品ごとに項目を並べた書き方と、表です。</strong>" +
               "表は、1行目に「品番」「数量」「単価」「金額」の見出しが要ります。" +
               "見出しが無ければ足して、語が違えばこの4つに書き換えて、もう一度貼ってみてください。" +
@@ -156,7 +158,7 @@
             : "") +
           (品番だけ ? "<p>この頁は、あなたの店舗の商品一覧を持ちません。そのため品番が実際に在るかは確かめられません。そこだけは <a href=\"../\">Kihyo</a> 本体の仕事です。</p>" : "") +
           list("確認が要るところ", その他) +
-          list("合わないところ", 読めない ? [] : r.理由) +
+          list(読めない ? "読み取れなかったところ" : "合わないところ", 読めない && rows.length === 0 ? [] : r.理由) +
           list("読み取るときに外したもの", r.注記));
       });
 

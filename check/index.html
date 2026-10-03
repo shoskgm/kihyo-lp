@@ -36,10 +36,10 @@
       table { border-collapse:collapse; width:100%; font-size:14px; margin:0 0 14px; }
       th, td { border-bottom:1px solid var(--rule); padding:7px 8px; text-align:left; }
       td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
-      .verdict { padding:14px 16px; margin:0 0 16px; background:var(--paper-2); border-left:4px solid var(--rule); }
-      .verdict.ok { border-left-color:#3f6b3f; }
-      .verdict.review { border-left-color:#9a7b26; }
-      .verdict.reject { border-left-color:var(--seal); }
+      .verdict { padding:14px 16px; margin:0 0 16px; background:var(--paper-2); border-top:2px solid var(--rule); }
+      .verdict.ok { border-top-color:#3f6b3f; }
+      .verdict.review { border-top-color:#9a7b26; }
+      .verdict.reject { border-top-color:var(--seal); }
       ul { margin:0 0 14px; padding-left:1.2em; }
       li { margin:0 0 6px; }
       footer { margin-top:48px; padding-top:16px; border-top:1px solid var(--rule); font-size:13px; color:var(--ink-2); }
@@ -56,7 +56,7 @@
     <div class="wrap">
       <main>
       <h1>注文書の検算</h1>
-      <p class="lead">メールで届いた注文書を貼ると、明細を取り出して、単価×数量と合計が合っているかを確かめます。</p>
+      <p class="lead">メールで届いた注文書を貼ると、明細を取り出して、単価×数量と合計が合っているかを確かめます。Excel から貼った表も、1行目に見出しがあれば読めます。</p>
       <p class="privacy">
         <strong>この計算は、あなたのブラウザの中だけで動きます。</strong>貼った内容はどこにも送られません。この頁が外へ取りに行くのは、表示に使う Web フォント（Google Fonts）だけです。
         Kihyo 本体と同じ判定のコードを、そのまま読み込んで動かしています。
@@ -86,7 +86,7 @@
       <h2>この形の注文書が読めなかったら</h2>
       <p>取引先ごとに書式が違うので、ここで読めないものがあります。<strong>どんな形だったかを、一言 教えてください。</strong>どの形から読めるようにするかを決める材料にします。</p>
       <p class="handling">
-        <strong>注文書そのものは貼らないでください。取引先の名前も要りません。</strong>「Excel の表で、品番が2列目」「PDF で、明細が2ページ目から」のように、<strong>形だけで足ります。</strong><br />
+        <strong>注文書そのものは貼らないでください。取引先の名前も要りません。</strong>「Excel の表で、見出しの行が無い」「PDF で、明細が2ページ目から」のように、<strong>形だけで足ります。</strong><br />
         下のボタンは Google フォーム（<code>docs.google.com</code>）へ移動します。<strong>この頁で貼った内容は、そこへは引き継がれません。</strong>入力された内容は Google のサービス上に保存され、HASHIRA CAPITAL が閲覧します。返信と、その内容の確認のためだけに使います。
       </p>
       <p><a class="ask" href="https://docs.google.com/forms/d/e/1FAIpQLSfz1Rxko_STbnanPC5qpBGdPuMnxPwNHM8DFn6DfcPN1W9oag/viewform">お問い合わせ</a></p>
@@ -131,7 +131,10 @@
         const 品番の話 = (x) => /店舗のSKUに無い/.test(x);
         const その他 = 手.filter((x) => !品番の話(x));
         const 品番だけ = 手.length > 0 && その他.length === 0;
-        const head = r.判定 === "ready"
+        const 読めない = r.判定 === "reject" && rows.length === 0;
+        const head = 読めない
+          ? ["reject", "読み取れませんでした。このままでは注文にしないでください。"]
+          : r.判定 === "ready"
           ? ["ok", "合っています。このまま注文にできます。"]
           : r.判定 === "reject"
             ? ["reject", "合いません。注文にしないでください。"]
@@ -146,13 +149,14 @@
           (o.合計 != null ? `<p>合計：${num(o.合計)}</p>` : "") +
           (rows.length === 0
             ? "<p><strong>いま読めるのは、1品ごとに項目を並べた書き方と、Excel から貼った表です。</strong>" +
-              "表は、1行目に「品番」「数量」「単価」「金額」の見出しが並んでいるものを読みます。" +
-              "<strong>見出しの無い表と、空白や罫線で列をそろえた表は、まだ読めません。</strong>" +
-              "読めなかった形を教えてもらえると、次にどの形を読めるようにするかを決められます。</p>"
+              "表は、1行目に「品番」「数量」「単価」「金額」の見出しが要ります。" +
+              "見出しが無ければ足して、語が違えばこの4つに書き換えて、もう一度貼ってみてください。" +
+              "<strong>空白や罫線で列をそろえた表は、まだ読めません。</strong>" +
+              "それでも駄目なら、どんな形だったかを下のお問い合わせから教えてください。</p>"
             : "") +
           (品番だけ ? "<p>この頁は、あなたの店舗の商品一覧を持ちません。そのため品番が実際に在るかは確かめられません。そこだけは <a href=\"../\">Kihyo</a> 本体の仕事です。</p>" : "") +
           list("確認が要るところ", その他) +
-          list("合わないところ", r.理由) +
+          list("合わないところ", 読めない ? [] : r.理由) +
           list("読み取るときに外したもの", r.注記));
       });
 

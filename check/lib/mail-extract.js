@@ -167,20 +167,46 @@ const tableLines = (text) => {
 /** 包みの引用符を外す。`"ボルト ""特注"""` → `ボルト "特注"` */
 const unquote = (c) => (/^"[\s\S]*"$/.test(c) ? c.slice(1, -1).replace(/""/g, '"') : c);
 
+/**
+ * **空白や罫線で列をそろえた表を、セルに割る。**（2026-10-04・タブの無い表）
+ *
+ * 区切りは **半角の空白2つ以上／全角の空白／縦の罫線**。——**空白1つでは割らない**（品名の中の空白と見分けられない）。
+ * 罫線だけの行（`|---|---|` `+----+`）は、行ごと捨てる（`null`）。
+ */
+const splitAligned = (line) => {
+    const cells = line.trim().split(/\s*[|｜│┃]\s*|[ ]{2,}|　+/);
+    while (cells.length && cells[0] === "") cells.shift();
+    while (cells.length && cells[cells.length - 1] === "") cells.pop();
+    return cells.length && cells.every((c) => /^[-=─━┄┈+:┼╋]*$/.test(c)) ? null : cells;
+};
+
 export function extractTable(text) {
     const items = [], totals = {};
-    let col = null;
+    // **そろえた表（タブ無し）は、見出しと列の数が合う行だけを明細にする。**
+    //   列の数が合わない行は、**黙って飛ばさず「読めていない明細」として残す**——飛ばすと1品 抜けた注文が検算を通る。
+    //   空行で表は終わる（そのあとの文を明細にしない）。小計・合計だけは、空行のあとでも拾う。
+    let col = null, tabbed = true, width = 0, closed = false;
     for (const line of tableLines(text)) {
-        if (!line.includes("\t")) continue;
-        const cells = line.split("\t").map((c) => unquote(c.trim()).trim());
+        const tab = line.includes("\t");
+        if (!tab && col && !tabbed && !line.trim()) { closed = true; continue; }
+        const split = tab ? line.split("\t") : splitAligned(line);
+        if (!split || (!tab && split.length < 2)) continue;
+        const cells = split.map((c) => unquote(c.trim()).trim());
         const head = tableHead(cells);
-        if (head) { col = head; continue; }
-        if (!col) continue;
+        if (head) { col = head; tabbed = tab; width = cells.length; closed = false; continue; }
+        if (!col || tab !== tabbed) continue;
         const label = cells.find((c) => c) ?? "";
         const total = label.replace(/[\s　]/g, "").match(/^(小計|合計|消費税|税)/);
         if (total) {
             const nums = cells.filter((c) => c !== label).map(toNum).filter((v) => v != null);
             if (nums.length && (total[1] === "小計" || total[1] === "合計")) totals[total[1]] = nums[nums.length - 1];
+            continue;
+        }
+        if (closed) continue;
+        if (!tabbed && cells.length !== width) {
+            // 数字の無い行は、表のあとの文である（「以上です。　よろしく…」）——そこで表を終える
+            if (!/\d/.test(line.normalize("NFKC"))) { closed = true; continue; }
+            items.push({ 商品名: cells.join(" "), 数量: null, 単価: null, 金額: null });
             continue;
         }
         const at = (k) => (k in col ? cells[col[k]] ?? "" : "");

@@ -110,6 +110,67 @@ export function extractItems(text) {
     return items;
 }
 
+/** 表の見出し。**項目を並べる書き方（上）と同じ語だけを見る**——語を増やさない */
+const TABLE_HEAD = [
+    ["品番", /^品番$/],
+    ["商品名", /^(商品名|品名|品目)$/],
+    ["数量", /^数量$/],
+    ["単位", /^単位$/],
+    ["単価", /^(単価|発注単価)$/],
+    ["金額", /^(金額|発注金額)$/],
+];
+/** `単価（円）` `数量(単位)` → 単価 / 数量。括弧の中と空白を落とす */
+const headKey = (s) => {
+    const n = String(s).replace(/[（(［\[][^）)］\]]*[）)］\]]/g, "").replace(/[\s　]/g, "");
+    const hit = TABLE_HEAD.find(([, re]) => re.test(n));
+    return hit ? hit[0] : null;
+};
+/** 見出しの行か。**数量と、品番か商品名のどちらかが在ること**——在れば列の対応を返す */
+const tableHead = (cells) => {
+    const col = {};
+    for (const [i, c] of cells.entries()) { const k = headKey(c); if (k && !(k in col)) col[k] = i; }
+    return "数量" in col && ("品番" in col || "商品名" in col) ? col : null;
+};
+
+/**
+ * **タブ区切りの表から明細を切り出す。**（2026-10-03・Excel から貼った注文）
+ *
+ * **見出しの行が無い表は読まない。**——**列の意味を、並び順から推測しない。**
+ * 〔`品番 数量 単価 金額` の順は相手次第で、数量と単価を取り違えても検算（単価×数量）は通る〕
+ *
+ * **小計・合計・消費税の行は明細にしない。**——小計と合計は、検算に使うので返す。
+ */
+export function extractTable(text) {
+    const items = [], totals = {};
+    let col = null;
+    for (const line of text.split(/\r?\n/)) {
+        if (!line.includes("\t")) continue;
+        const cells = line.split("\t").map((c) => c.trim());
+        const head = tableHead(cells);
+        if (head) { col = head; continue; }
+        if (!col) continue;
+        const label = cells.find((c) => c) ?? "";
+        const total = label.replace(/[\s　]/g, "").match(/^(小計|合計|消費税|税)/);
+        if (total) {
+            const nums = cells.filter((c) => c !== label).map(toNum).filter((v) => v != null);
+            if (nums.length && (total[1] === "小計" || total[1] === "合計")) totals[total[1]] = nums[nums.length - 1];
+            continue;
+        }
+        const at = (k) => (k in col ? cells[col[k]] ?? "" : "");
+        if (!at("品番") && !at("商品名")) continue;
+        const item = {};
+        if (at("商品名")) item.商品名 = at("商品名");
+        if (at("品番")) item.品番 = at("品番");
+        item.数量 = toNum(at("数量"));
+        const u = at("単位") || toUnit(at("数量"));
+        if (u) item.単位 = u;
+        item.単価 = toNum(at("単価"));
+        item.金額 = toNum(at("金額"));
+        items.push(item);
+    }
+    return { items, totals };
+}
+
 /** 明細の外にある項目（合計・納期・納入場所） */
 export function extractHeader(text) {
     const out = {};
@@ -161,5 +222,9 @@ export function extractSender(signature = []) {
 /** 本文1通から、起票すべき発注を1件取り出す */
 export function extractOrder(body) {
     const { text, dropped, signature } = stripQuotedAndSignature(body);
-    return { ...extractSender(signature), ...extractHeader(text), 明細: extractItems(text), $落とした行: dropped };
+    const 明細 = extractItems(text);
+    if (明細.length) return { ...extractSender(signature), ...extractHeader(text), 明細, $落とした行: dropped };
+    // **項目を並べる書き方で1件も取れなかったときだけ、表を見る。**——2つの読み方を1通の中で混ぜない
+    const { items, totals } = extractTable(text);
+    return { ...extractSender(signature), ...totals, ...extractHeader(text), 明細: items, $落とした行: dropped };
 }

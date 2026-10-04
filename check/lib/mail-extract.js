@@ -201,9 +201,13 @@ export function extractTable(text) {
             const nums = cells.filter((c) => c !== label).map(toNum).filter((v) => v != null);
             // **消費税も返す**——小計が無く「明細＋消費税＝合計」と書いた注文を、合わないと言わないため（2026-10-04）
             //   税率ごとに2行 在る注文（8%・10%）は足す。「税込合計」のように 税 で始まるだけの行は読まない
+            //   **税込と書いた合計は、別の欄に入れる**（`合計（税込）` `税込合計`）——税抜の明細とそのまま比べない
             const v = nums[nums.length - 1];
-            if (nums.length && total[1] === "消費税") totals.消費税 = (totals.消費税 ?? 0) + v;
-            else if (nums.length && total[1] !== "税") totals[total[1]] = v;
+            const 税込 = /税込/.test(label), 名 = total[1] !== "消費税" && /合計/.test(label) ? "合計" : total[1];
+            if (!nums.length) continue;
+            if (名 === "消費税") totals.消費税 = (totals.消費税 ?? 0) + v;
+            else if (名 === "合計") totals[税込 ? "合計税込" : "合計"] = v;
+            else if (名 === "小計" && !税込) totals.小計 = v;
             continue;
         }
         if (closed) continue;
@@ -232,14 +236,20 @@ export function extractTable(text) {
  * **表の外に1行で書いた小計・合計を拾う。**（2026-10-04・`合計 17,000円`）
  *
  * 空白1つやコロン無しで書くと、表のセルにも `キー：値` にもならず、**合計を読まないまま「合っています」と出ていた。**
- * **税込と書いてある行は読まない**——明細は税抜で並ぶので、比べると合わない注文ばかりになる。
+ * **税込と書いた合計は `合計税込` に入れる**——明細は税抜で並ぶので、そのまま比べると合わない注文ばかりになる。
+ * 〔「（税込）」を前に書いても後ろに書いても同じ欄に入れる。位置で判定が逆になっていた＝レビュー本部 `hd-review#172`〕
+ * NFKC のあとで当てるので、括弧・コロン・円記号は半角だけを見る。
  */
-const LOOSE_TOTAL = /^[・･\-*■◆]?\s*(小計|合計|消費税)(?:金額|額)?\s*(?:[（(](?:税[抜別]|\d+%)[）)])?\s*[：:]?\s*[¥￥]?\s*(-?[\d,]+)\s*円?\s*(?:[（(]税[抜別][）)])?$/;
+const LOOSE_TOTAL = /^[・･\-*■◆]?\s*(税込)?(小計|合計|消費税)(?:金額|額)?\s*(?:\((税込|税抜|税別|\d+%)\))?\s*:?\s*¥?\s*(-?[\d,]+)\s*円?\s*(?:\((税込|税抜|税別)\))?$/;
 export function extractLooseTotals(text) {
     const out = {};
     for (const line of text.split(/\r?\n/)) {
         const m = line.normalize("NFKC").trim().match(LOOSE_TOTAL);
-        if (m) out[m[1]] = m[1] === "消費税" ? (out.消費税 ?? 0) + toNum(m[2]) : toNum(m[2]);
+        if (!m) continue;
+        const 税込 = m[1] === "税込" || m[3] === "税込" || m[5] === "税込", v = toNum(m[4]);
+        if (m[2] === "消費税") out.消費税 = (out.消費税 ?? 0) + v;
+        else if (m[2] === "合計") out[税込 ? "合計税込" : "合計"] = v;
+        else if (!税込) out.小計 = v;
     }
     return out;
 }
@@ -251,7 +261,9 @@ export function extractHeader(text) {
         const m = line.match(FIELD);
         if (!m) continue;
         const key = m[1].trim(), val = m[2].trim();
-        if (/^合計(金額)?$/.test(key)) out.合計 = toNum(val);
+        // **「（税込）」は前に書いても後ろに書いても、同じ欄に入れる**（`合計（税込）：…` `税込合計：…` `合計：…（税込）`）
+        const k = key.normalize("NFKC").replace(/\s/g, "");
+        if (/^(税込)?合計(金額)?(\(税込\))?$/.test(k)) out[/税込/.test(k) || /税込/.test(val) ? "合計税込" : "合計"] = toNum(val);
         else if (/^小計$/.test(key)) out.小計 = toNum(val);
         else if (/^消費税(額)?([（(]\d+[%％][）)])?$/.test(key)) out.消費税 = (out.消費税 ?? 0) + (toNum(val) ?? 0);
         else if (/^(希望納期|納期)$/.test(key)) out.希望納期 = normDate(val);

@@ -56,6 +56,12 @@ export function verify(order) {
       ? `明細合計（${sum}）＋消費税（${税}）が合計（${order.合計}）と合わない`
       : `明細合計（${sum}）が合計（${order.合計}）と合わない`);
   }
+  // **税込と書いた合計は、消費税が書いてあるときだけ比べる**——無ければ比べない（税率を仮定しない）〔hd-review#172〕
+  const 税込 = order.合計税込 ?? null;
+  if (税込 != null && 税 != null) {
+    const 元 = order.小計 ?? sum;
+    if (元 + 税 !== 税込) ng.push(`${order.小計 != null ? "小計" : "明細合計"}（${元}）＋消費税（${税}）が税込の合計（${税込}）と合わない`);
+  }
   return { ok: ng.length === 0, 落ちた理由: ng };
 }
 

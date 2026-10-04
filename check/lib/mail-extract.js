@@ -224,6 +224,22 @@ export function extractTable(text) {
     return { items, totals };
 }
 
+/**
+ * **表の外に1行で書いた小計・合計を拾う。**（2026-10-04・`合計 17,000円`）
+ *
+ * 空白1つやコロン無しで書くと、表のセルにも `キー：値` にもならず、**合計を読まないまま「合っています」と出ていた。**
+ * **税込と書いてある行は読まない**——明細は税抜で並ぶので、比べると合わない注文ばかりになる。
+ */
+const LOOSE_TOTAL = /^[・･\-*■◆]?\s*(小計|合計)(?:金額)?\s*(?:[（(]税[抜別][）)])?\s*[：:]?\s*[¥￥]?\s*(-?[\d,]+)\s*円?\s*(?:[（(]税[抜別][）)])?$/;
+export function extractLooseTotals(text) {
+    const out = {};
+    for (const line of text.split(/\r?\n/)) {
+        const m = line.normalize("NFKC").trim().match(LOOSE_TOTAL);
+        if (m) out[m[1]] = toNum(m[2]);
+    }
+    return out;
+}
+
 /** 明細の外にある項目（合計・納期・納入場所） */
 export function extractHeader(text) {
     const out = {};
@@ -231,7 +247,7 @@ export function extractHeader(text) {
         const m = line.match(FIELD);
         if (!m) continue;
         const key = m[1].trim(), val = m[2].trim();
-        if (/^合計$/.test(key)) out.合計 = toNum(val);
+        if (/^合計(金額)?$/.test(key)) out.合計 = toNum(val);
         else if (/^(希望納期|納期)$/.test(key)) out.希望納期 = normDate(val);
         else if (/^納入場所$/.test(key)) out.納入場所 = val;
     }
@@ -276,8 +292,8 @@ export function extractSender(signature = []) {
 export function extractOrder(body) {
     const { text, dropped, signature } = stripQuotedAndSignature(body);
     const 明細 = extractItems(text);
-    if (明細.length) return { ...extractSender(signature), ...extractHeader(text), 明細, $落とした行: dropped };
+    if (明細.length) return { ...extractSender(signature), ...extractLooseTotals(text), ...extractHeader(text), 明細, $落とした行: dropped };
     // **項目を並べる書き方で1件も取れなかったときだけ、表を見る。**——2つの読み方を1通の中で混ぜない
     const { items, totals } = extractTable(text);
-    return { ...extractSender(signature), ...totals, ...extractHeader(text), 明細: items, $落とした行: dropped };
+    return { ...extractSender(signature), ...extractLooseTotals(text), ...totals, ...extractHeader(text), 明細: items, $落とした行: dropped };
 }

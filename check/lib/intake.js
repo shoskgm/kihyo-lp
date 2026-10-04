@@ -48,7 +48,14 @@ export function verify(order) {
   }
   const sum = items.reduce((s, r) => s + (r.金額 ?? 0), 0);
   if (order.小計 != null && sum !== order.小計) ng.push(`明細合計（${sum}）が小計（${order.小計}）と合わない`);
-  if (order.合計 != null && order.小計 == null && sum !== order.合計) ng.push(`明細合計（${sum}）が合計（${order.合計}）と合わない`);
+  // **消費税が書いてあれば、足して比べる**——「明細＋消費税＝合計」の注文を、合わないと言わない（2026-10-04）
+  const 税 = order.消費税 ?? null;
+  if (order.小計 != null && 税 != null && order.合計 != null && order.小計 + 税 !== order.合計) ng.push(`小計（${order.小計}）＋消費税（${税}）が合計（${order.合計}）と合わない`);
+  if (order.合計 != null && order.小計 == null && sum !== order.合計 && !(税 != null && sum + 税 === order.合計)) {
+    ng.push(税 != null
+      ? `明細合計（${sum}）＋消費税（${税}）が合計（${order.合計}）と合わない`
+      : `明細合計（${sum}）が合計（${order.合計}）と合わない`);
+  }
   return { ok: ng.length === 0, 落ちた理由: ng };
 }
 

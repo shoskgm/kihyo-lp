@@ -199,7 +199,11 @@ export function extractTable(text) {
         const total = label.replace(/[\s　]/g, "").match(/^(小計|合計|消費税|税)/);
         if (total) {
             const nums = cells.filter((c) => c !== label).map(toNum).filter((v) => v != null);
-            if (nums.length && (total[1] === "小計" || total[1] === "合計")) totals[total[1]] = nums[nums.length - 1];
+            // **消費税も返す**——小計が無く「明細＋消費税＝合計」と書いた注文を、合わないと言わないため（2026-10-04）
+            //   税率ごとに2行 在る注文（8%・10%）は足す。「税込合計」のように 税 で始まるだけの行は読まない
+            const v = nums[nums.length - 1];
+            if (nums.length && total[1] === "消費税") totals.消費税 = (totals.消費税 ?? 0) + v;
+            else if (nums.length && total[1] !== "税") totals[total[1]] = v;
             continue;
         }
         if (closed) continue;
@@ -230,12 +234,12 @@ export function extractTable(text) {
  * 空白1つやコロン無しで書くと、表のセルにも `キー：値` にもならず、**合計を読まないまま「合っています」と出ていた。**
  * **税込と書いてある行は読まない**——明細は税抜で並ぶので、比べると合わない注文ばかりになる。
  */
-const LOOSE_TOTAL = /^[・･\-*■◆]?\s*(小計|合計)(?:金額)?\s*(?:[（(]税[抜別][）)])?\s*[：:]?\s*[¥￥]?\s*(-?[\d,]+)\s*円?\s*(?:[（(]税[抜別][）)])?$/;
+const LOOSE_TOTAL = /^[・･\-*■◆]?\s*(小計|合計|消費税)(?:金額|額)?\s*(?:[（(](?:税[抜別]|\d+%)[）)])?\s*[：:]?\s*[¥￥]?\s*(-?[\d,]+)\s*円?\s*(?:[（(]税[抜別][）)])?$/;
 export function extractLooseTotals(text) {
     const out = {};
     for (const line of text.split(/\r?\n/)) {
         const m = line.normalize("NFKC").trim().match(LOOSE_TOTAL);
-        if (m) out[m[1]] = toNum(m[2]);
+        if (m) out[m[1]] = m[1] === "消費税" ? (out.消費税 ?? 0) + toNum(m[2]) : toNum(m[2]);
     }
     return out;
 }
@@ -248,6 +252,8 @@ export function extractHeader(text) {
         if (!m) continue;
         const key = m[1].trim(), val = m[2].trim();
         if (/^合計(金額)?$/.test(key)) out.合計 = toNum(val);
+        else if (/^小計$/.test(key)) out.小計 = toNum(val);
+        else if (/^消費税(額)?([（(]\d+[%％][）)])?$/.test(key)) out.消費税 = (out.消費税 ?? 0) + (toNum(val) ?? 0);
         else if (/^(希望納期|納期)$/.test(key)) out.希望納期 = normDate(val);
         else if (/^納入場所$/.test(key)) out.納入場所 = val;
     }

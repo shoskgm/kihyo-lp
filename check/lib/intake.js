@@ -59,7 +59,7 @@ export function verify(order) {
     const 率 = 税 == null && sum > 0
       ? [10, 8].find((p) => [Math.floor, Math.round, Math.ceil].some((f) => f((sum * (100 + p)) / 100) === order.合計))
       : null;
-    if (率) ng.push(`合計（${order.合計}）は、明細合計に消費税${率}%を足した額に当たる。税込の額なら、合計に「（税込）」と書くか、消費税の行を足すと比べられる`);
+    if (率) ng.push(`合計（${order.合計}）は税込の額かもしれない（明細合計＋消費税${率}%と同じ）。そうなら「（税込）」と書き足すか、消費税の行を入れて貼り直す`);
   }
   // **税込と書いた合計は、消費税が書いてあるときだけ比べる**——無ければ比べない（税率を仮定しない）〔hd-review#172〕
   const 税込 = order.合計税込 ?? null;

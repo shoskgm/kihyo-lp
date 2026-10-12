@@ -73,7 +73,8 @@ const FIELD = /^\s*[・･\-*]?\s*([^：:]{1,20})\s*[：:]\s*(.+?)\s*$/;
 /** 数字を取り出す。`2,400円` `40箱` `120本` → 2400 / 40 / 120 */
 const toNum = (s) => {
     // **全角の数字（１２０・１，２００）も数として読む。**——Excel の表で実際に出る形（2026-10-03）
-    const m = String(s).normalize("NFKC").replace(/,/g, "").match(/-?\d+/);
+    // **小数も、書いてあるとおりに読む**（`12.5円` `1.5kg`）——切り捨てて 12 と読み、正しい注文を落としていた（2026-10-12）
+    const m = String(s).normalize("NFKC").replace(/,/g, "").match(/-?\d+(?:\.\d+)?/);
     return m ? Number(m[0]) : null;
 };
 /**
@@ -91,9 +92,24 @@ const toAmount = (s) => {
     }
     return 円.length ? 円[0] : 素.length === 1 ? 素[0] : null;
 };
+/**
+ * **明細の単価・金額を読む。**（2026-10-12）
+ *
+ * `単価：1個 500円` は 1、`単価：1.2万円` も 1 と読んでいた——後ろは、単価 1円のまま検算を通っていた。
+ * 円・¥ の付いた数を先に読む（`toAmount`）。無ければ、数が1つだけのときに読む。
+ * **万・千・億を添えた額は読まない**——読まなければ「読めていない」と出て、人が見る。
+ */
+const toPrice = (s) => {
+    const n = String(s).normalize("NFKC").replace(/,/g, "");
+    if (/\d\s*[万千億]/.test(n)) return null;
+    const a = toAmount(n);
+    if (a != null) return a;
+    const all = n.match(/-?\d+(?:\.\d+)?/g) ?? [];
+    return all.length === 1 ? Number(all[0]) : null;
+};
 /** 単位を取り出す。`40箱` → 箱 */
 const toUnit = (s) => {
-    const m = String(s).normalize("NFKC").replace(/[,\d\s]/g, "").match(/^[^0-9]{1,3}/);
+    const m = String(s).normalize("NFKC").replace(/[,.\d\s]/g, "").match(/^[^0-9]{1,3}/);
     return m ? m[0] : null;
 };
 
@@ -119,8 +135,8 @@ export function extractItems(text) {
         if (!cur) continue;
         if (/^品番$/.test(key)) cur.品番 = val;
         else if (/^数量$/.test(key)) { cur.数量 = toNum(val); const u = toUnit(val); if (u) cur.単位 = u; }
-        else if (/^(単価|発注単価)$/.test(key)) cur.単価 = toNum(val);
-        else if (/^(金額|発注金額)$/.test(key)) cur.金額 = toNum(val);
+        else if (/^(単価|発注単価)$/.test(key)) cur.単価 = toPrice(val);
+        else if (/^(金額|発注金額)$/.test(key)) cur.金額 = toPrice(val);
     }
     if (cur) items.push(cur);
     return items;
@@ -241,8 +257,8 @@ export function extractTable(text) {
         item.数量 = toNum(at("数量"));
         const u = at("単位") || toUnit(at("数量"));
         if (u) item.単位 = u;
-        item.単価 = toNum(at("単価"));
-        item.金額 = toNum(at("金額"));
+        item.単価 = toPrice(at("単価"));
+        item.金額 = toPrice(at("金額"));
         items.push(item);
     }
     return { items, totals };

@@ -44,7 +44,10 @@ export function verify(order) {
 
   for (const [i, r] of items.entries()) {
     if (r.数量 == null || r.単価 == null || r.金額 == null) { ng.push(`明細${i + 1}: 数量/単価/金額のいずれかが読めていない`); continue; }
-    if (r.数量 * r.単価 !== r.金額) ng.push(`明細${i + 1}: 単価×数量（${r.数量 * r.単価}）が金額（${r.金額}）と合わない`);
+    // **小数の単価・数量は、円に丸めた額も合っているとする**（`12.5円 × 3 = 37.5` を 37・38 と書く）——丸め方は相手次第（2026-10-12）
+    const 積 = Math.round(r.数量 * r.単価 * 1e6) / 1e6;
+    const 合う = 積 === r.金額 || (!Number.isInteger(積) && [Math.floor, Math.round, Math.ceil].some((f) => f(積) === r.金額));
+    if (!合う) ng.push(`明細${i + 1}: 単価×数量（${積}）が金額（${r.金額}）と合わない`);
   }
   const sum = items.reduce((s, r) => s + (r.金額 ?? 0), 0);
   if (order.小計 != null && sum !== order.小計) ng.push(`明細合計（${sum}）が小計（${order.小計}）と合わない`);
@@ -112,6 +115,12 @@ export function intake(source, catalog = []) {
   //
   // **初版は両方を「判定できない」にしていた。**——**メール本文が常に `review` になっていた。**
   // **`review` が増えると、本当に人手が要る行が埋もれる。**
+  // **小数の数量・単価は、検算が合っていても人が見る**——下書きの注文にそのまま入るかを、まだ確かめていない（2026-10-12）
+  for (const [i, r] of (order.明細 ?? []).entries()) {
+    const 小数 = ["数量", "単価"].filter((k) => typeof r[k] === "number" && !Number.isInteger(r[k]));
+    if (小数.length) 要人手.push(`明細${i + 1} の${小数.join("と")}に小数が在る（${小数.map((k) => r[k]).join("・")}）——下書きの注文に入れる前に確かめる`);
+  }
+
   const 税不明 = (order.明細 ?? []).filter((r) => "軽減" in r && r.軽減 === null);
   if (税不明.length) 要人手.push(`${税不明.length}件の軽減税率が判定できない——**凡例が読めていない**（標準モードのFAXで起きる）`);
 

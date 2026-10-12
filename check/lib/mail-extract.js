@@ -76,11 +76,17 @@ const FIELD_COLON = /^\s*(?:[・･\-*■□●○◆]|[(（]?\d{1,2}[.)．）]|
 const FIELD_BRACKET = /^\s*(?:[・･\-*■□●○◆]|[(（]?\d{1,2}[.)．）]|[①-⑳])?\s*【\s*([^】]{1,20}?)\s*】\s*[：:]?\s*(.+?)\s*$/;
 const field = (line) => line.match(FIELD_BRACKET) ?? line.match(FIELD_COLON);
 
+/**
+ * 数を読む前に、字をそろえる。全角を半角にし、桁区切りを落とす。
+ * **`▲500円` `△500` `−500` は負の数である**（値引きの行）——符号を落とすと、値引きが同じ額の請求として通る（2026-10-13）
+ */
+const flat = (s) => String(s).normalize("NFKC").replace(/,/g, "")
+    .replace(/[▲△−]\s*(?=[¥\d])/g, "-").replace(/-\s*¥\s*(?=\d)/g, "¥-");
 /** 数字を取り出す。`2,400円` `40箱` `120本` → 2400 / 40 / 120 */
 const toNum = (s) => {
     // **全角の数字（１２０・１，２００）も数として読む。**——Excel の表で実際に出る形（2026-10-03）
     // **小数も、書いてあるとおりに読む**（`12.5円` `1.5kg`）——切り捨てて 12 と読み、正しい注文を落としていた（2026-10-12）
-    const m = String(s).normalize("NFKC").replace(/,/g, "").match(/-?\d+(?:\.\d+)?/);
+    const m = flat(s).match(/-?\d+(?:\.\d+)?/);
     return m ? Number(m[0]) : null;
 };
 /**
@@ -92,7 +98,7 @@ const toNum = (s) => {
  */
 const toAmount = (s) => {
     const 円 = [], 素 = [];
-    for (const m of String(s).normalize("NFKC").replace(/,/g, "").matchAll(/(¥\s*)?(-?\d+(?:\.\d+)?)\s*(円|%|\p{L}+)?/gu)) {
+    for (const m of flat(s).matchAll(/(¥\s*)?(-?\d+(?:\.\d+)?)\s*(円|%|\p{L}+)?/gu)) {
         if (m[1] || m[3] === "円") 円.push(Number(m[2]));
         else if (!m[3] || /^税/.test(m[3])) 素.push(Number(m[2]));
     }
@@ -106,16 +112,22 @@ const toAmount = (s) => {
  * **万・千・億を添えた額は読まない**——読まなければ「読めていない」と出て、人が見る。
  */
 const toPrice = (s) => {
-    const n = String(s).normalize("NFKC").replace(/,/g, "");
+    const n = flat(s);
     if (/\d\s*[万千億]/.test(n)) return null;
     const a = toAmount(n);
     if (a != null) return a;
     const all = n.match(/-?\d+(?:\.\d+)?/g) ?? [];
     return all.length === 1 ? Number(all[0]) : null;
 };
-/** 単位を取り出す。`40箱` → 箱 */
+/**
+ * 単位を取り出す。`40箱` → 箱
+ * **最初の数のすぐ後ろの字を読む**——`10箱（1箱100個入）` を「箱(箱」、`約10個` を「約個」と読んでいた（2026-10-13）
+ */
 const toUnit = (s) => {
-    const m = String(s).normalize("NFKC").replace(/[,.\d\s]/g, "").match(/^[^0-9]{1,3}/);
+    const n = String(s).normalize("NFKC");
+    const after = n.match(/\d[\d,.]*\s*(\p{L}{1,3})/u);
+    if (after) return after[1];
+    const m = n.replace(/[,.\d\s]/g, "").match(/^[^0-9]{1,3}/);
     return m ? m[0] : null;
 };
 

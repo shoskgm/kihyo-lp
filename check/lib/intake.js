@@ -119,6 +119,9 @@ export function intake(source, catalog = []) {
   for (const [i, r] of (order.明細 ?? []).entries()) {
     const 小数 = ["数量", "単価"].filter((k) => typeof r[k] === "number" && !Number.isInteger(r[k]));
     if (小数.length) 要人手.push(`明細${i + 1} の${小数.join("と")}に小数が在る（${小数.map((k) => r[k]).join("・")}）——下書きの注文に入れる前に確かめる`);
+    // **負の数（値引き・返品の行）も同じ**——下書きの注文の明細に負の単価が入るかを、まだ確かめていない（2026-10-13）
+    const 負 = ["数量", "単価", "金額"].filter((k) => typeof r[k] === "number" && r[k] < 0);
+    if (負.length) 要人手.push(`明細${i + 1} の${負.join("と")}が負の数（${負.map((k) => r[k]).join("・")}）——値引きや返品の行として、下書きの注文に入れる前に確かめる`);
   }
 
   const 税不明 = (order.明細 ?? []).filter((r) => "軽減" in r && r.軽減 === null);

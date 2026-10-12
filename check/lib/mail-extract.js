@@ -119,22 +119,29 @@ const toUnit = (s) => {
  * **列の対応が無いので、「商品名で始まり、次の商品名までが1件」とする。**
  * ——**空行を区切りにしない。**空行の入れ方は相手次第であり、
  * **「商品名が2回出たら2件」のほうが、相手の書き方に依存しない。**
+ *
+ * **品番を先に書く相手も居る**（`品番：` → `品名：` の順）。——商品名だけを区切りにすると、
+ * **2件目の品番が1件目に付く**（単価×数量も合計も合うので、検算は通ってしまう）。
+ * 最初に出たほう（品番か商品名）を、その注文の区切りとする。
  */
 export function extractItems(text) {
     const items = [];
-    let cur = null;
+    let cur = null, lead = null;
+    const filled = () => cur && ("数量" in cur || "単価" in cur || "金額" in cur);
+    const open = (k, val) => {
+        lead ??= k;
+        if (!cur || k in cur || (lead === k && filled())) { if (cur) items.push(cur); cur = {}; }
+        cur[k] = val;
+    };
     for (const line of text.split(/\r?\n/)) {
         const m = line.match(FIELD);
-        if (!m) continue;
+        // 空の `品番：` も区切りである（欄だけ在って書いていない明細に、次の明細の品番を付けない）
+        if (!m) { if (/^\s*[・･\-*]?\s*品番\s*[：:]\s*$/.test(line)) open("品番", undefined); continue; }
         const key = m[1].trim(), val = m[2].trim();
-        if (/^(商品名|品名|品目)$/.test(key)) {
-            if (cur) items.push(cur);
-            cur = { 商品名: val };
-            continue;
-        }
+        if (/^(商品名|品名|品目)$/.test(key)) { open("商品名", val); continue; }
+        if (/^品番$/.test(key)) { open("品番", val); continue; }
         if (!cur) continue;
-        if (/^品番$/.test(key)) cur.品番 = val;
-        else if (/^数量$/.test(key)) { cur.数量 = toNum(val); const u = toUnit(val); if (u) cur.単位 = u; }
+        if (/^数量$/.test(key)) { cur.数量 = toNum(val); const u = toUnit(val); if (u) cur.単位 = u; }
         else if (/^(単価|発注単価)$/.test(key)) cur.単価 = toPrice(val);
         else if (/^(金額|発注金額)$/.test(key)) cur.金額 = toPrice(val);
     }

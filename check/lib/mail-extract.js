@@ -31,15 +31,39 @@ const isQuote = (line) => /^\s*[>＞]/.test(line);
 const isSignatureStart = (line) => /^\s*(--\s*$|—{2,}\s*$|ー{2,}\s*$)/.test(line);
 
 /**
+ * **`>` の付かない引用の始まりか。**（2026-10-13）
+ *
+ * Outlook の返信は、前のメールに `>` を付けない。印は、区切りの1行か、差出人・送信日時の並びだけである。
+ * ——**その下の過去の注文を、新しい明細として読んでいた。**（`>` の付く引用は落とせていた）
+ */
+const REPLY_LINE = /^\s*-{2,}\s*(Original Message|Forwarded message|元のメッセージ|転送メッセージ|転送されたメッセージ)\s*-{2,}\s*$/i;
+const REPLY_WROTE = /(<[^<>\s]+@[^<>\s]+>|\d{1,2}:\d{2}).{0,40}[:：]\s*$/;
+const HEAD_FROM = /^\s*(差出人|送信者|From)\s*[:：]/i;
+const HEAD_SENT = /^\s*(送信日時|日時|Sent|Date)\s*[:：]/i;
+const isReplyHead = (lines, i) =>
+    REPLY_LINE.test(lines[i])
+    || (/^\s*(On\s|\d{4}\s*[年/])/.test(lines[i]) && REPLY_WROTE.test(lines[i]))
+    || (HEAD_FROM.test(lines[i]) && lines.slice(i + 1, i + 4).some((l) => HEAD_SENT.test(l)));
+
+/**
  * **引用と署名を落として、注文が書かれている範囲だけを残す。**
  *
  * **これが工程4の中心である。**——**読む前に、読む場所を決める。**
  */
 export function stripQuotedAndSignature(body) {
-    const lines = String(body).split(/\r?\n/);
+    let lines = String(body).split(/\r?\n/);
     const kept = [];
     let dropped = { quote: 0, signature: 0 };
     let cut = -1;
+    // **`>` の付かない引用は、印から下を全部 落とす。**——ただし、**印より上に注文が在るときだけ**である。
+    // 上に注文が無ければ切らない（転送された注文・貼ったメールの頭の差出人の欄を、引用として捨てない）。
+    // そのときは「印の下にしか注文が無い」と返し、人が見る
+    // 印は1通に何個も在りうる（貼ったメールの頭の差出人の欄 → 本文 → 引用）。**上に注文の在る、最初の印で切る**
+    const 印 = lines.flatMap((l, i) => (!isQuote(l) && isReplyHead(lines, i) ? [i] : []));
+    const 上に注文 = (i) => { const 上 = lines.slice(0, i).filter((l) => !isQuote(l)).join("\n"); return extractItems(上).length > 0 || extractTable(上).items.length > 0; };
+    const rh = 印.find(上に注文);
+    if (rh != null) { dropped.quote += lines.length - rh; lines = lines.slice(0, rh); }
+    else if (印.some((i) => lines.slice(0, i).some((l) => l.trim()))) dropped.印の下だけ = true;
     for (const [i, line] of lines.entries()) {
         if (isQuote(line)) { dropped.quote++; continue; }
         // **署名以降は全部落とす。**——署名の下に注文が書かれることは無い

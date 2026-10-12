@@ -76,6 +76,21 @@ const toNum = (s) => {
     const m = String(s).normalize("NFKC").replace(/,/g, "").match(/-?\d+/);
     return m ? Number(m[0]) : null;
 };
+/**
+ * **合計・小計・消費税の行から、金額を取り出す。**（2026-10-12）
+ *
+ * `合計：2点 1,800円` を `toNum` で読むと 2 になり、**正しい注文を「合いません」と落としていた。**
+ * 円・¥ の付いた数が在れば、それを金額とする。無ければ、単位も % も付かない数が1つのときだけ読む。
+ * 点数・個数だけの行（`合計：30個`）や、どれが金額か決められない行は読まない——**読まなければ「合計は比べていません」と出る。**
+ */
+const toAmount = (s) => {
+    const 円 = [], 素 = [];
+    for (const m of String(s).normalize("NFKC").replace(/,/g, "").matchAll(/(¥\s*)?(-?\d+(?:\.\d+)?)\s*(円|%|\p{L}+)?/gu)) {
+        if (m[1] || m[3] === "円") 円.push(Number(m[2]));
+        else if (!m[3] || /^税/.test(m[3])) 素.push(Number(m[2]));
+    }
+    return 円.length ? 円[0] : 素.length === 1 ? 素[0] : null;
+};
 /** 単位を取り出す。`40箱` → 箱 */
 const toUnit = (s) => {
     const m = String(s).normalize("NFKC").replace(/[,\d\s]/g, "").match(/^[^0-9]{1,3}/);
@@ -198,13 +213,14 @@ export function extractTable(text) {
         const label = cells.find((c) => c) ?? "";
         const total = label.replace(/[\s　]/g, "").match(/^(小計|合計|消費税|税)/);
         if (total) {
-            const nums = cells.filter((c) => c !== label).map(toNum).filter((v) => v != null);
+            const rest = cells.filter((c) => c !== label), nums = rest.map(toNum).filter((v) => v != null);
             // **消費税も返す**——小計が無く「明細＋消費税＝合計」と書いた注文を、合わないと言わないため（2026-10-04）
             //   税率ごとに2行 在る注文（8%・10%）は足す。「税込合計」のように 税 で始まるだけの行は読まない
             //   **税込と書いた合計は、別の欄に入れる**（`合計（税込）` `税込合計`）——税抜の明細とそのまま比べない
-            const v = nums[nums.length - 1];
+            //   **点数と金額が並ぶ行（`合計  2点  1,800円`）は、金額の側を読む。**数だけが並ぶ行は、右端を金額とする（列の並びのとおり）
+            const v = toAmount(rest.join(" ")) ?? (rest.some((c) => /\p{L}/u.test(c.normalize("NFKC").replace(/円/g, ""))) ? null : nums[nums.length - 1]);
             const 税込 = /税込/.test(label), 名 = total[1] !== "消費税" && /合計/.test(label) ? "合計" : total[1];
-            if (!nums.length) continue;
+            if (v == null) continue;
             if (名 === "消費税") totals.消費税 = (totals.消費税 ?? 0) + v;
             else if (名 === "合計") totals[税込 ? "合計税込" : "合計"] = v;
             else if (名 === "小計" && !税込) totals.小計 = v;
@@ -239,14 +255,16 @@ export function extractTable(text) {
  * **税込と書いた合計は `合計税込` に入れる**——明細は税抜で並ぶので、そのまま比べると合わない注文ばかりになる。
  * 〔「（税込）」を前に書いても後ろに書いても同じ欄に入れる。位置で判定が逆になっていた＝レビュー本部 `hd-review#172`〕
  * NFKC のあとで当てるので、括弧・コロン・円記号は半角だけを見る。
+ * **点数を添えた合計も読む**（`合計 2点 1,800円` `合計 1,800円（2点）`・2026-10-12）。残りが数・記号・数え方の語だけの行に限る——文は読まない。
  */
-const LOOSE_TOTAL = /^[・･\-*■◆]?\s*(税込)?(小計|合計|消費税)(?:金額|額)?\s*(?:\((税込|税抜|税別|\d+%)\))?\s*:?\s*¥?\s*(-?[\d,]+)\s*円?\s*(?:\((税込|税抜|税別)\))?$/;
+const LOOSE_TOTAL = /^[・･\-*■◆]?\s*(税込)?(小計|合計|消費税)(?:金額|額)?((?:[\s:¥円\/,.()\-\d%]|計|税込|税抜|税別|点|個|件|箱|本|枚|品目|品|種類|種|行|組|台|袋|缶|束|巻|冊|セット|ケース)*)$/;
 export function extractLooseTotals(text) {
     const out = {};
     for (const line of text.split(/\r?\n/)) {
         const m = line.normalize("NFKC").trim().match(LOOSE_TOTAL);
         if (!m) continue;
-        const 税込 = m[1] === "税込" || m[3] === "税込" || m[5] === "税込", v = toNum(m[4]);
+        const 税込 = m[1] === "税込" || /税込/.test(m[3]), v = toAmount(m[3]);
+        if (v == null) continue;
         if (m[2] === "消費税") out.消費税 = (out.消費税 ?? 0) + v;
         else if (m[2] === "合計") out[税込 ? "合計税込" : "合計"] = v;
         else if (!税込) out.小計 = v;
@@ -263,9 +281,11 @@ export function extractHeader(text) {
         const key = m[1].trim(), val = m[2].trim();
         // **「（税込）」は前に書いても後ろに書いても、同じ欄に入れる**（`合計（税込）：…` `税込合計：…` `合計：…（税込）`）
         const k = key.normalize("NFKC").replace(/\s/g, "");
-        if (/^(税込)?合計(金額)?(\(税込\))?$/.test(k)) out[/税込/.test(k) || /税込/.test(val) ? "合計税込" : "合計"] = toNum(val);
-        else if (/^小計$/.test(key)) out.小計 = toNum(val);
-        else if (/^消費税(額)?([（(]\d+[%％][）)])?$/.test(key)) out.消費税 = (out.消費税 ?? 0) + (toNum(val) ?? 0);
+        //   **金額は `toAmount` で読む**——読めなければ欄を作らない（`合計：2点 1,800円` を 2 と読んでいた・2026-10-12）
+        const 額 = toAmount(val);
+        if (/^(税込)?合計(金額)?(\(税込\))?$/.test(k)) { if (額 != null) out[/税込/.test(k) || /税込/.test(val) ? "合計税込" : "合計"] = 額; }
+        else if (/^小計$/.test(key)) { if (額 != null) out.小計 = 額; }
+        else if (/^消費税(額)?([（(]\d+[%％][）)])?$/.test(key)) { if (額 != null) out.消費税 = (out.消費税 ?? 0) + 額; }
         else if (/^(希望納期|納期)$/.test(key)) out.希望納期 = normDate(val);
         else if (/^納入場所$/.test(key)) out.納入場所 = val;
     }

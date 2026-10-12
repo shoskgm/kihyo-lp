@@ -67,8 +67,14 @@ export function stripQuotedAndSignature(body) {
     return { text: kept.join("\n"), dropped, signature };
 }
 
-/** `・キー：値` の行を拾う（全角コロンも半角も） */
-const FIELD = /^\s*[・･\-*]?\s*([^：:]{1,20})\s*[：:]\s*(.+?)\s*$/;
+/**
+ * `・キー：値` の行を拾う（全角コロンも半角も）。
+ * **頭の番号（`1.` `(2)` `③`）は落とす**——付いたままだと `1. 商品名` という欄になり、商品名を読まない。
+ * **`【キー】値` も同じ欄として読む**（コロンを書かない相手が居る）。
+ */
+const FIELD_COLON = /^\s*(?:[・･\-*■□●○◆]|[(（]?\d{1,2}[.)．）]|[①-⑳])?\s*([^：:]{1,20})\s*[：:]\s*(.+?)\s*$/;
+const FIELD_BRACKET = /^\s*(?:[・･\-*■□●○◆]|[(（]?\d{1,2}[.)．）]|[①-⑳])?\s*【\s*([^】]{1,20}?)\s*】\s*[：:]?\s*(.+?)\s*$/;
+const field = (line) => line.match(FIELD_BRACKET) ?? line.match(FIELD_COLON);
 
 /** 数字を取り出す。`2,400円` `40箱` `120本` → 2400 / 40 / 120 */
 const toNum = (s) => {
@@ -134,7 +140,7 @@ export function extractItems(text) {
         cur[k] = val;
     };
     for (const line of text.split(/\r?\n/)) {
-        const m = line.match(FIELD);
+        const m = field(line);
         // 空の `品番：` も区切りである（欄だけ在って書いていない明細に、次の明細の品番を付けない）
         if (!m) { if (/^\s*[・･\-*]?\s*品番\s*[：:]\s*$/.test(line)) open("品番", undefined); continue; }
         const key = m[1].trim(), val = m[2].trim();
@@ -299,7 +305,7 @@ export function extractLooseTotals(text) {
 export function extractHeader(text) {
     const out = {};
     for (const line of text.split(/\r?\n/)) {
-        const m = line.match(FIELD);
+        const m = field(line);
         if (!m) continue;
         const key = m[1].trim(), val = m[2].trim();
         // **「（税込）」は前に書いても後ろに書いても、同じ欄に入れる**（`合計（税込）：…` `税込合計：…` `合計：…（税込）`）

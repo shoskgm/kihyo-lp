@@ -333,12 +333,18 @@ export function extractHeader(text) {
     return out;
 }
 
-/** `2026年8月28日` → `2026-08-28` */
+/**
+ * `2026年8月28日` `2026/8/28` `２０２６年８月２８日` → `2026-08-28`
+ * **年の書いていない日付・和暦・暦に無い日付は、書いてあるとおりに残す**——年を当てて埋めない。
+ * 〔`2026年13月45日` を `2026-13-45` と、在る日付の形に直していた（2026-10-13）〕
+ */
 function normDate(s) {
-    const m = String(s).match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
-    if (m) return `${m[1]}-${String(m[2]).padStart(2, "0")}-${String(m[3]).padStart(2, "0")}`;
-    const i = String(s).match(/(\d{4})-(\d{2})-(\d{2})/);
-    return i ? i[0] : String(s);
+    const m = String(s).normalize("NFKC").match(/(?<!\d)(\d{4})\s*(?:年|[-/.])\s*(\d{1,2})\s*(?:月|[-/.])\s*(\d{1,2})(?!\d)/);
+    if (!m) return String(s);
+    const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+    const t = new Date(Date.UTC(y, mo - 1, d));
+    if (t.getUTCFullYear() !== y || t.getUTCMonth() !== mo - 1 || t.getUTCDate() !== d) return String(s);
+    return `${m[1]}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
 /**
